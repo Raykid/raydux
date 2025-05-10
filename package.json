@@ -7,11 +7,11 @@
     "README.md",
     "LICENSE"
   ],
-  "main": "build/index.mjs",
-  "module": "build/index.mjs",
+  "main": "build/index.js",
+  "module": "build/index.js",
   "types": "build/index.d.ts",
   "scripts": {
-    "build": "webpack --config ./scripts/webpack.config.js",
+    "build": "tsc",
     "format": "prettier --write .",
     "prepublishOnly": "npm run build"
   },

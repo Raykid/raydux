@@ -86,7 +86,6 @@ module.exports = [
       react: "react",
       "react-dom": "react-dom",
       "react-redux": "react-redux",
-      "rect-router-dom": "react-router-dom",
       redux: "redux",
     },
 

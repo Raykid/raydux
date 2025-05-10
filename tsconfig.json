@@ -18,10 +18,10 @@
     "moduleResolution": "node",
     "downlevelIteration": true,
     "allowJs": true,
-    "outDir": "dist",
+    "outDir": "build",
     "jsx": "react",
     "types": ["webpack-env"],
     "baseUrl": "."
   },
-  "include": ["src", "test"]
+  "include": ["src"]
 }

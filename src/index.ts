@@ -1,11 +1,14 @@
 /// <reference types="mutative" />
 /// <reference types="react" />
 /// <reference types="react-redux" />
-/// <reference types="react-router-dom" />
 /// <reference types="redux" />
 
 import { createElement, FC, ReactNode, StrictMode, useMemo } from "react";
 import { Provider } from "./hooks/provider";
+
+export * from "./hooks/index";
+export { Provider } from "./hooks/provider";
+export * from "./hooks/store";
 
 export type StartrUpProps = {
   /**
