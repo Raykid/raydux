@@ -1,6 +1,6 @@
 {
   "name": "raydux",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "基于Redux包装的使用Hooks开发的轻量级状态仓库，全TypeScript支持",
   "files": [
     "build",
