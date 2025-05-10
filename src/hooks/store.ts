@@ -20,7 +20,7 @@ try {
 const regInternalActionType = /^(\w+)::(.+)$/;
 const oriReducer = (state: any, action: PayloadActiion<any>) => {
   if (
-    action.type === "@@INIIT" ||
+    action.type === "@@INIT" ||
     action.type.startsWith("@@redux/INIT") ||
     action.type.startsWith("@@redux/REPLACE")
   ) {
