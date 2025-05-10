@@ -23,5 +23,5 @@
     "types": ["webpack-env"],
     "baseUrl": "."
   },
-  "include": ["src/index.ts"]
+  "include": ["src", "test"]
 }

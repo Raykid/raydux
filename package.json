@@ -1,5 +1,5 @@
 {
-  "name": "raydooks",
+  "name": "raydux",
   "version": "0.1.0",
   "description": "基于Redux包装的使用Hooks开发的轻量级状态仓库，全TypeScript支持",
   "files": [
@@ -17,7 +17,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Raykid/raydooks.git"
+    "url": "git+https://github.com/Raykid/raydux.git"
   },
   "keywords": [
     "redux",
@@ -29,9 +29,9 @@
   "author": "raykid13",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/Raykid/raydooks/issues"
+    "url": "https://github.com/Raykid/raydux/issues"
   },
-  "homepage": "https://github.com/Raykid/raydooks#readme",
+  "homepage": "https://github.com/Raykid/raydux#readme",
   "lint-staged": {
     "*": [
       "npm run format"
