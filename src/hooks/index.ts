@@ -4,7 +4,7 @@ import { ImmediateOrDelayed } from "../types/immediate-or-delayed";
 import { isSimpleValue } from "../utils/object-util";
 import { store } from "./store";
 
-type ServiceContext<State> = {
+type SliceContext<State> = {
   name: string;
   ready: boolean;
   initialized: boolean;
@@ -16,27 +16,27 @@ type ServiceContext<State> = {
   loop?: () => State;
 };
 
-const serviceMap: { [name: string]: ServiceContext<any> } = {};
-// 当前正在运行的 Service 的 Context
-let curContext: ServiceContext<any> | null = null;
+const sliceMap: { [name: string]: SliceContext<any> } = {};
+// 当前正在运行的 Slice 的 Context
+let curContext: SliceContext<any> | null = null;
 let curHookIndex = 0;
 
-const serviceInitPromiseList: Promise<void>[] = [];
-export async function whenAllServicesReady() {
-  await Promise.all(serviceInitPromiseList);
+const sliceInitPromiseList: Promise<void>[] = [];
+export async function whenAllSlicesReady() {
+  await Promise.all(sliceInitPromiseList);
 }
 
-const serviceCreatedListeners: ((take: () => any) => void)[] = [];
-export function listenServiceCreated(
+const sliceCreatedListeners: ((take: () => any) => void)[] = [];
+export function listenSliceCreated(
   listener: (take: () => any) => void
 ): () => void {
-  if (serviceCreatedListeners.indexOf(listener) < 0) {
-    serviceCreatedListeners.push(listener);
+  if (sliceCreatedListeners.indexOf(listener) < 0) {
+    sliceCreatedListeners.push(listener);
   }
   return () => {
-    const index = serviceCreatedListeners.indexOf(listener);
+    const index = sliceCreatedListeners.indexOf(listener);
     if (index >= 0) {
-      serviceCreatedListeners.splice(index, 1);
+      sliceCreatedListeners.splice(index, 1);
     }
   };
 }
@@ -45,15 +45,15 @@ export type Take<State> = () => State;
 
 const STATE_TYPE = Symbol("state-type");
 
-export function createService<State extends Readonly<object>>(
+export function createSlice<State extends Readonly<object>>(
   name: string,
   creator: () => ImmediateOrDelayed<() => State>
 ): Take<State> {
-  if (name in serviceMap) {
-    throw new Error(`Service ${name} already exists`);
+  if (name in sliceMap) {
+    throw new Error(`Slice ${name} already exists`);
   }
 
-  const context: ServiceContext<State> = {
+  const context: SliceContext<State> = {
     name,
     ready: false,
     initialized: false,
@@ -64,12 +64,12 @@ export function createService<State extends Readonly<object>>(
     dependents: [],
     loop: undefined,
   };
-  serviceMap[name] = context;
+  sliceMap[name] = context;
 
   // 初始化
-  serviceInitPromiseList.push(
-    // 需要等前置全部 Service ready 后再开始初始化自身
-    whenAllServicesReady().then(() => {
+  sliceInitPromiseList.push(
+    // 需要等前置全部 Slice ready 后再开始初始化自身
+    whenAllSlicesReady().then(() => {
       return new Promise((resolve) => {
         const initializeHandler = (loop: () => State) => {
           context.loop = loop;
@@ -112,7 +112,7 @@ export function createService<State extends Readonly<object>>(
     const state = store.getState()[name];
     const wholeState = getWholeState(state);
     if (curContext) {
-      // 在某个 Service 里面间接调用了另一个 Service，需要添加依赖
+      // 在某个 Slice 里面间接调用了另一个 Slice，需要添加依赖
       const dependentContext = curContext;
       if (!dependentContext.initialized) {
         context.dependents.push(() => {
@@ -137,13 +137,13 @@ export function createService<State extends Readonly<object>>(
     }
   };
   // 触发 Listeners
-  serviceCreatedListeners.forEach((listener) => {
+  sliceCreatedListeners.forEach((listener) => {
     try {
       listener(take);
     } catch (err) {
       console.error(
         "[Store error]",
-        `Service "${name}" serviceCreatedListeners listener error`,
+        `Slice "${name}" sliceCreatedListeners listener error`,
         err
       );
     }
@@ -151,9 +151,9 @@ export function createService<State extends Readonly<object>>(
   return take;
 }
 
-function runLoop(context: ServiceContext<any>) {
+function runLoop(context: SliceContext<any>) {
   if (!context.ready) {
-    throw new Error(`Service ${context.name} not ready`);
+    throw new Error(`Slice ${context.name} not ready`);
   }
   if (curContext) {
     throw new Error("Do not call hooks inside another hook");
@@ -185,7 +185,7 @@ function runLoop(context: ServiceContext<any>) {
       }
     }
     store.dispatch({
-      type: `${context.initialized ? "setState" : "initializeService"}::${context.name}`,
+      type: `${context.initialized ? "setState" : "initializeSlice"}::${context.name}`,
       payload: stateMap,
     });
     // 如果有依赖关系，执行
@@ -199,9 +199,9 @@ function runLoop(context: ServiceContext<any>) {
   }
 }
 
-function flush(context: ServiceContext<any>) {
+function flush(context: SliceContext<any>) {
   if (!context.ready) {
-    throw new Error(`Service ${context.name} not ready`);
+    throw new Error(`Slice ${context.name} not ready`);
   }
   if (context.dirty) {
     runLoop(context);
@@ -209,9 +209,9 @@ function flush(context: ServiceContext<any>) {
   }
 }
 
-function setDirty(context: ServiceContext<any>) {
+function setDirty(context: SliceContext<any>) {
   if (!context.ready) {
-    throw new Error(`Service ${context.name} not ready`);
+    throw new Error(`Slice ${context.name} not ready`);
   }
   if (!context.dirty) {
     context.dirty = true;
@@ -278,7 +278,7 @@ export function takeState<State>(
   state?: State | (() => State)
 ): [State | undefined, Dispatch<State | undefined>] {
   if (!curContext) {
-    throw new Error("Hooks must be called inside a service");
+    throw new Error("Hooks must be called inside a slice");
   }
   const context = curContext;
   const index = curHookIndex++;
@@ -332,7 +332,7 @@ export function takeState<State>(
  */
 export function takeMemo<Memo>(memo: () => Memo, deps: any[]): Memo {
   if (!curContext) {
-    throw new Error("Hooks must be called inside a service");
+    throw new Error("Hooks must be called inside a slice");
   }
   const context = curContext;
   const index = curHookIndex++;
@@ -381,7 +381,7 @@ export function takeCallback<Callback extends Function>(
   deps: any[]
 ): Callback {
   if (!curContext) {
-    throw new Error("Hooks must be called inside a service");
+    throw new Error("Hooks must be called inside a slice");
   }
   const context = curContext;
   const index = curHookIndex++;
@@ -417,7 +417,7 @@ export function takeCallback<Callback extends Function>(
 
 export function takeEffect(effect: () => (() => void) | void, deps: any[]) {
   if (!curContext) {
-    throw new Error("Hooks must be called inside a service");
+    throw new Error("Hooks must be called inside a slice");
   }
   const context = curContext;
   const index = curHookIndex++;

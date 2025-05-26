@@ -28,10 +28,10 @@ const oriReducer = (state: any, action: PayloadActiion<any>) => {
   } else if (action.type.indexOf("::") >= 0) {
     const [, type, name] = regInternalActionType.exec(action.type)!;
     switch (type) {
-      case "initializeService": {
+      case "initializeSlice": {
         const initialState = action.payload;
         if (Object.hasOwnProperty.call(state, name)) {
-          throw new Error(`Duplicate service name: ${name}`);
+          throw new Error(`Duplicate slice name: ${name}`);
         }
         return {
           ...state,

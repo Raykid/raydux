@@ -1,6 +1,6 @@
 import { createElement, FC, ReactNode, useEffect, useState } from "react";
 import { Provider as _Provider } from "react-redux";
-import { listenServiceCreated, whenAllServicesReady } from ".";
+import { listenSliceCreated, whenAllSlicesReady } from ".";
 import { store } from "./store";
 
 export const Provider: FC<{
@@ -17,8 +17,8 @@ export const Provider: FC<{
       if (dynamicallyInitialize) {
         setReady(false);
       }
-      const myReady = (allReady = whenAllServicesReady().then(() => {
-        // 如果 allReady 和 myReady 一致，说明在这之后没有其他新增的 service，可以确认 ready
+      const myReady = (allReady = whenAllSlicesReady().then(() => {
+        // 如果 allReady 和 myReady 一致，说明在这之后没有其他新增的 slice，可以确认 ready
         if (allReady === myReady) {
           setReady(true);
         }
@@ -26,11 +26,11 @@ export const Provider: FC<{
     };
     // 首次执行
     validateReady();
-    // 监听新进 Service 事件
-    return listenServiceCreated(validateReady);
+    // 监听新进 Slice 事件
+    return listenSliceCreated(validateReady);
   }, [dynamicallyInitialize]);
 
-  // Service 没全部准备好时不呈现 children
+  // Slice 没全部准备好时不呈现 children
   return createElement(_Provider, {
     store,
     children: ready ? children : preload,

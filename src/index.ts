@@ -27,8 +27,8 @@ export type StartrUpProps = {
   development?: boolean;
 
   /**
-   * 是否支持动态初始化 Service
-   * 默认为 false，因为动态初始化 Service 会让所有组件暂时卸载，这其中可能有部分组件存在副作用无法回收的问题
+   * 是否支持动态初始化 Slice
+   * 默认为 false，因为动态初始化 Slice 会让所有组件暂时卸载，这其中可能有部分组件存在副作用无法回收的问题
    * 如确实需要动态初始化，则可以置为 true
    */
   dynamicallyInitialize?: boolean;
