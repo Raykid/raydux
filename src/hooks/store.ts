@@ -17,7 +17,7 @@ try {
     window.__REDUX_DEVTOOLS_EXTENSION__();
 } catch {}
 
-const regInternalActionType = /^(\w+)::(.+)$/;
+const regInternalActionType = /^(\w+)::([^|]+)(.*)$/;
 const oriReducer = (state: any, action: PayloadActiion<any>) => {
   if (
     action.type === "@@INIT" ||
@@ -26,7 +26,8 @@ const oriReducer = (state: any, action: PayloadActiion<any>) => {
   ) {
     return state || {};
   } else if (action.type.indexOf("::") >= 0) {
-    const [, type, name] = regInternalActionType.exec(action.type)!;
+    const [, type, name, fromInfo] = regInternalActionType.exec(action.type)!;
+    // fromInfo is used to store the information of the dispatcher, which is not used in the reducer
     switch (type) {
       case "initializeSlice": {
         const initialState = action.payload;

@@ -9,6 +9,7 @@ type SliceContext<State> = {
   ready: boolean;
   initialized: boolean;
   dirty: boolean;
+  froms: { name: string; hookIndex: number }[];
   hooks: { type: string; extra: any }[];
   memoMap: { [key: string]: (state: State) => any };
   callbackMap: { [key: string]: Function };
@@ -58,6 +59,7 @@ export function createSlice<State extends Readonly<object>>(
     ready: false,
     initialized: false,
     dirty: false,
+    froms: [],
     hooks: [],
     memoMap: {},
     callbackMap: {},
@@ -114,9 +116,13 @@ export function createSlice<State extends Readonly<object>>(
     if (curContext) {
       // 在某个 Slice 里面间接调用了另一个 Slice，需要添加依赖
       const dependentContext = curContext;
+      const dependentHookIndex = curHookIndex++;
       if (!dependentContext.initialized) {
         context.dependents.push(() => {
-          setDirty(dependentContext);
+          setDirty(dependentContext, {
+            name: context.name,
+            hookIndex: dependentHookIndex,
+          });
         });
       }
       // 直接使用普通数据
@@ -184,8 +190,18 @@ function runLoop(context: SliceContext<any>) {
         }
       }
     }
+    let type = `${context.initialized ? "setState" : "initializeSlice"}::${context.name}`;
+    if (context.froms.length > 0) {
+      for (const from of context.froms) {
+        if (from.name === context.name) {
+          type += `|${from.hookIndex}`;
+        } else {
+          type += `|${from.hookIndex}(by ${from.name})`;
+        }
+      }
+    }
     store.dispatch({
-      type: `${context.initialized ? "setState" : "initializeSlice"}::${context.name}`,
+      type,
       payload: stateMap,
     });
     // 如果有依赖关系，执行
@@ -206,13 +222,19 @@ function flush(context: SliceContext<any>) {
   if (context.dirty) {
     runLoop(context);
     context.dirty = false;
+    context.froms = [];
   }
 }
 
-function setDirty(context: SliceContext<any>) {
+function setDirty(
+  context: SliceContext<any>,
+  from: { name: string; hookIndex: number }
+) {
   if (!context.ready) {
     throw new Error(`Slice ${context.name} not ready`);
   }
+  // 记录 from 信息
+  context.froms.push(from);
   if (!context.dirty) {
     context.dirty = true;
     Promise.resolve()
@@ -221,6 +243,7 @@ function setDirty(context: SliceContext<any>) {
       })
       .catch((err) => {
         context.dirty = false;
+        context.froms = [];
         return Promise.reject(err);
       });
   }
@@ -312,7 +335,10 @@ export function takeState<State>(
           if (newState !== lastState) {
             extra.state = newState;
             // 触发更新
-            setDirty(context);
+            setDirty(context, {
+              name: context.name,
+              hookIndex: index,
+            });
           }
           return newState;
         }),
