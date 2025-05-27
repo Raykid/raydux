@@ -1,3 +1,9 @@
+# 目录
+
+- [快速开始](#快速开始)
+- [Hooks](#hooks)
+- [最佳实践 & 典型案例分析](#最佳实践--典型案例分析)
+
 # 快速开始
 
 ## 介绍
@@ -35,7 +41,7 @@ createRoot(document.getElementById("app")).render(
 
 使用 `createSlice` 函数创建一个 Slice。第一个参数提供数据切片名称，第二个参数传入一个`连续函数`，其中第二层函数为 `loop 函数`。loop 函数会在 Slice 生命周期里被多次执行，以生成最新的数据切片状态。
 
-至于第一层函数的作用，在后面会介绍。
+至于第一层函数的作用，在 [slice 初始化章节](#slice-初始化)会介绍。
 
 ```js
 import { createSlice, takeCallback, takeState } from "raydux";
