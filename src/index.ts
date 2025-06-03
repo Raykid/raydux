@@ -3,50 +3,34 @@
 /// <reference types="react-redux" />
 /// <reference types="redux" />
 
-import { createElement, FC, ReactNode, StrictMode, useMemo } from "react";
-import { Provider } from "./hooks/provider";
+import { createElement, FC, StrictMode, useMemo } from "react";
+import { Provider, ProviderProps } from "./hooks/provider";
 
 export * from "./hooks/index";
 export { Provider } from "./hooks/provider";
 export * from "./hooks/store";
 
-export type StartrUpProps = {
-  /**
-   * 要渲染的内容
-   */
-  children?: ReactNode;
-
-  /**
-   * 启动前的预加载内容
-   */
-  preload?: ReactNode;
-
+export type StartrUpProps = ProviderProps & {
   /**
    * 是否开发模式
    */
   development?: boolean;
-
-  /**
-   * 是否支持动态初始化 Slice
-   * 默认为 false，因为动态初始化 Slice 会让所有组件暂时卸载，这其中可能有部分组件存在副作用无法回收的问题
-   * 如确实需要动态初始化，则可以置为 true
-   */
-  dynamicallyInitialize?: boolean;
 };
 
 export const StartUp: FC<StartrUpProps> = (options) => {
-  const { preload, children, development, dynamicallyInitialize } = options;
+  const { development, ...providerProps } = options;
+
+  const rendererDeps = useMemo(() => {
+    return Object.keys(providerProps)
+      .sort((a, b) => a.localeCompare(b))
+      .map((key) => {
+        return providerProps[key as keyof typeof providerProps];
+      });
+  }, [providerProps]);
 
   const renderer = useMemo(() => {
-    return createElement(
-      Provider,
-      {
-        preload,
-        dynamicallyInitialize,
-      },
-      children
-    );
-  }, [preload, children, dynamicallyInitialize]);
+    return createElement(Provider, providerProps);
+  }, rendererDeps);
 
   const rendererWithStrictMode = useMemo(() => {
     return development ? createElement(StrictMode, {}, renderer) : renderer;

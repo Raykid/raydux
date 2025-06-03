@@ -1,14 +1,35 @@
-import { createElement, FC, ReactNode, useEffect, useState } from "react";
+import {
+  createElement,
+  FC,
+  ReactNode,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { Provider as _Provider } from "react-redux";
 import { listenSliceCreated, whenAllSlicesReady } from ".";
 import { store } from "./store";
 
-export const Provider: FC<{
-  children?: ReactNode;
-  preload?: ReactNode;
+export type ProviderChildrenContext = {
+  ready: boolean;
+};
+
+export type ProviderProps = {
+  /**
+   * 要渲染的内容，或者内容工厂方法
+   */
+  children?: ReactNode | ((ctx: ProviderChildrenContext) => ReactNode);
+
+  /**
+   * 是否支持动态初始化 Slice
+   * 默认为 false，因为动态初始化 Slice 会让所有组件暂时卸载，这其中可能有部分组件存在副作用无法回收的问题
+   * 如确实需要动态初始化，则可以置为 true
+   */
   dynamicallyInitialize?: boolean;
-}> = (props) => {
-  const { children, preload, dynamicallyInitialize } = props;
+};
+
+export const Provider: FC<ProviderProps> = (props) => {
+  const { children, dynamicallyInitialize } = props;
   const [ready, setReady] = useState(false);
   useEffect(() => {
     let allReady: Promise<unknown>;
@@ -30,9 +51,19 @@ export const Provider: FC<{
     return listenSliceCreated(validateReady);
   }, [dynamicallyInitialize]);
 
+  const _children = useMemo(() => {
+    if (typeof children === "function") {
+      return children({
+        ready,
+      });
+    } else {
+      return children;
+    }
+  }, [ready]);
+
   // Slice 没全部准备好时不呈现 children
   return createElement(_Provider, {
     store,
-    children: ready ? children : preload,
+    children: _children,
   });
 };
