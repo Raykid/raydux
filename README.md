@@ -335,6 +335,23 @@ export const takeFoo = createSlice("foo", async () => {
 });
 ```
 
+## 预加载 Preloading
+
+由于 slice 存在异步初始化的情况，如果界面在 slice 初始化完毕前显示，有可能会碰到空引用错误，所以需要在所有 slice 初始化完毕前阻止界面展示。方式是在 `StartUp` 或 `Provider` 中进行判断：
+
+```jsx
+import { StartUp } from "raydux";
+
+// 将 StartUp 的内容修改为一个函数，其入参中包含 ready 属性，用以判断数据仓库是否准备完毕
+createRoot(document.getElementById("app")).render(
+  <StartUp>
+    {(ctx) => {
+      return ctx.ready ? <div>正式逻辑</div> : <div>加载中，请稍候...</div>;
+    }}
+  </StartUp>
+);
+```
+
 ## 懒加载
 
 你的界面可能会采用`懒加载`方式，在用户访问到时才加载和初始化，这样的界面所依赖的 slice 也会被懒加载。
