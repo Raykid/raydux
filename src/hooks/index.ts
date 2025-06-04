@@ -22,6 +22,8 @@ const sliceMap: { [name: string]: SliceContext<any> } = {};
 let curContext: SliceContext<any> | null = null;
 let curHookIndex = 0;
 
+const localPromise = Promise.resolve();
+
 const sliceInitPromiseList: Promise<void>[] = [];
 export async function whenAllSlicesReady() {
   await Promise.all(sliceInitPromiseList);
@@ -447,25 +449,28 @@ export function takeEffect(effect: () => (() => void) | void, deps: any[]) {
   }
   const context = curContext;
   const index = curHookIndex++;
-  let extra = context.hooks[index]?.extra;
-  if (!context.initialized) {
-    context.hooks[index] = {
-      type: "effect",
-      extra: (extra = {
-        deps,
-        cleanup: effect(),
-      }),
-    };
-  } else {
-    // 判断 deps 是否相同
-    if (!isDepsEqual(deps, extra.deps)) {
-      // 有变化，重新执行
-      if (extra.cleanup) {
-        extra.cleanup();
-        extra.dispatch = undefined;
+  // 模仿 react，将 effect 放到微任务延时执行，确保执行时 loop 已经结束
+  localPromise.then(() => {
+    let extra = context.hooks[index]?.extra;
+    if (!extra) {
+      context.hooks[index] = {
+        type: "effect",
+        extra: (extra = {
+          deps,
+          cleanup: effect(),
+        }),
+      };
+    } else {
+      // 判断 deps 是否相同
+      if (!isDepsEqual(deps, extra.deps)) {
+        // 有变化，重新执行
+        if (extra.cleanup) {
+          extra.cleanup();
+          extra.dispatch = undefined;
+        }
+        extra.deps = deps;
+        extra.cleanup = effect();
       }
-      extra.deps = deps;
-      extra.cleanup = effect();
     }
-  }
+  });
 }
