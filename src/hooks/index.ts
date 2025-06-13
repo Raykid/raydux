@@ -103,73 +103,85 @@ export function createSlice<State extends Readonly<object>>(
     [name: string]: { [key: string]: any };
   } = {};
   const take: Take<State> = () => {
-    return useSyncExternalStore(
-      (callback) => {
-        return store.subscribe(() => {
-          const curStoreState = store.getState();
-          if (curStoreState[name] !== lastStoreSlice) {
-            lastStoreSliceState = {
-              ...(lastStoreSlice = curStoreState[name]),
+    try {
+      return useSyncExternalStore(
+        (callback) => {
+          return store.subscribe(() => {
+            const curStoreState = store.getState();
+            if (curStoreState[name] !== lastStoreSlice) {
+              lastStoreSliceState = {
+                ...(lastStoreSlice = curStoreState[name]),
+                ...context.memoMap,
+                ...context.callbackMap,
+              };
+            }
+            // 遍历所有依赖路径，确定是否有变化
+            all: for (const name in depPaths) {
+              const sliceState = depPaths[name];
+              for (const key in sliceState) {
+                const lastState = sliceState[key];
+                const curState = lastStoreSliceState[key];
+                if (curState !== lastState) {
+                  // 与之前不同了，触发回调
+                  callback();
+                  // 跳出双重循环
+                  break all;
+                }
+              }
+            }
+          });
+        },
+        () => {
+          // 获取时要确保数据最新
+          flush(context);
+          if (curContext) {
+            // 在某个 Slice 里面间接调用了另一个 Slice，需要添加依赖
+            const dependentContext = curContext;
+            const dependentHookIndex = curHookIndex++;
+            if (!dependentContext.initialized) {
+              context.dependents.push(() => {
+                setDirty(dependentContext, {
+                  name: context.name,
+                  hookIndex: dependentHookIndex,
+                });
+              });
+            }
+          }
+          const state = store.getState()[name];
+          if (state !== lastState) {
+            // 计算新的 wholeState
+            lastWholeState = {
+              ...(lastState = state),
               ...context.memoMap,
               ...context.callbackMap,
             };
-          }
-          // 遍历所有依赖路径，确定是否有变化
-          all: for (const name in depPaths) {
-            const sliceState = depPaths[name];
-            for (const key in sliceState) {
-              const lastState = sliceState[key];
-              const curState = lastStoreSliceState[key];
-              if (curState !== lastState) {
-                // 与之前不同了，触发回调
-                callback();
-                // 跳出双重循环
-                break all;
-              }
-            }
-          }
-        });
-      },
-      () => {
-        // 获取时要确保数据最新
-        flush(context);
-        if (curContext) {
-          // 在某个 Slice 里面间接调用了另一个 Slice，需要添加依赖
-          const dependentContext = curContext;
-          const dependentHookIndex = curHookIndex++;
-          if (!dependentContext.initialized) {
-            context.dependents.push(() => {
-              setDirty(dependentContext, {
-                name: context.name,
-                hookIndex: dependentHookIndex,
-              });
+            lastWholeStateProxy = new Proxy(lastWholeState, {
+              get(wholeState, key: string) {
+                const targetState = wholeState[key];
+                if (targetState !== depPaths[name]?.[key]) {
+                  depPaths[name] = {
+                    ...depPaths[name],
+                    [key]: targetState,
+                  };
+                }
+                return targetState;
+              },
             });
           }
+          return lastWholeStateProxy;
         }
-        const state = store.getState()[name];
-        if (state !== lastState) {
-          // 计算新的 wholeState
-          lastWholeState = {
-            ...(lastState = state),
-            ...context.memoMap,
-            ...context.callbackMap,
-          };
-          lastWholeStateProxy = new Proxy(lastWholeState, {
-            get(wholeState, key: string) {
-              const targetState = wholeState[key];
-              if (targetState !== depPaths[name]?.[key]) {
-                depPaths[name] = {
-                  ...depPaths[name],
-                  [key]: targetState,
-                };
-              }
-              return targetState;
-            },
-          });
-        }
-        return lastWholeStateProxy;
-      }
-    );
+      );
+    } catch {
+      // 报错，说明可能不在正常的 hooks 中，直接获取数据
+      return (
+        lastWholeState ??
+        (lastWholeState = {
+          ...(lastState = store.getState()[name]),
+          ...context.memoMap,
+          ...context.callbackMap,
+        })
+      );
+    }
   };
   // 触发 Listeners
   sliceCreatedListeners.forEach((listener) => {
