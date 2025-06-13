@@ -8,7 +8,7 @@
     "emitDecoratorMetadata": true,
     "strict": true,
     "strictPropertyInitialization": false,
-    "sourceMap": true,
+    "sourceMap": false,
     "declaration": true,
     "stripInternal": true,
     "noUnusedLocals": false,

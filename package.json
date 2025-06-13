@@ -43,7 +43,6 @@
   "dependencies": {
     "lodash-es": "^4.17.21",
     "mutative": "^1.2.0",
-    "react-redux": "^9.2.0",
     "redux": "^5.0.1"
   },
   "devDependencies": {
