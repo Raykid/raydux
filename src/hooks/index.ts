@@ -59,10 +59,15 @@ export type Take<State> = {
   readonly name: string;
 
   /**
-   * 设置状态
-   * @param state
+   * 获取所有 takeState 的当前值
    */
-  set(state: State): void;
+  getHookStates(): any[];
+
+  /**
+   * 设置所有 takeState 的当前值，数量如果不一致会报错
+   * @param hookStates
+   */
+  setHookStates(hookStates: any[]): void;
 
   /**
    * 监听状态变更
@@ -216,15 +221,35 @@ export function createSlice<State extends Readonly<object>>(
       writable: false,
       value: name,
     },
-    set: {
+    getHookStates: {
       configurable: true,
       enumerable: false,
       writable: false,
-      value: (state: State) => {
-        const [stateMap] = separateState(state);
-        store.dispatch({
-          type: `${context.initialized ? "setState" : "initializeSlice"}::${context.name}`,
-          payload: stateMap,
+      value: () => {
+        return context.hooks.reduce((states, hook) => {
+          if (hook.type === "state") {
+            states.push(hook.extra.state);
+          }
+          return states;
+        }, [] as any[]);
+      },
+    },
+    setHookStates: {
+      configurable: true,
+      enumerable: false,
+      writable: false,
+      value: (hookStates: any[]) => {
+        const stateHooks = context.hooks.filter(
+          (hook) => hook.type === "state"
+        );
+        if (stateHooks.length !== hookStates.length) {
+          throw new Error(
+            "hookStats's count by setHookStates is not equal with takeState's"
+          );
+        }
+        // 更新状态
+        stateHooks.forEach((stateHook, index) => {
+          stateHook.extra.state = hookStates[index];
         });
       },
     },

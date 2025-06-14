@@ -1,3 +1,4 @@
+import { isShallowEquals } from "src/utils/object-util";
 import { Middleware } from ".";
 
 export type PersistProps = {
@@ -6,62 +7,30 @@ export type PersistProps = {
    */
   key: string;
   /**
-   * 字段白名单
-   */
-  whitelist?: string[];
-  /**
-   * 字段黑名单
-   */
-  blacklist?: string[];
-  /**
    * 是否在控制台输出调试信息
    */
   debug?: boolean;
 };
 
 export const persist: Middleware<PersistProps> = (take, props) => {
-  const { key, whitelist = [], blacklist = [], debug = false } = props;
-  let lastState: any = undefined;
+  const { key, debug = false } = props;
+  let lastHookStates: any[] | null = null;
   let lastStorageStr = localStorage.getItem(key);
   if (lastStorageStr) {
-    lastState = JSON.parse(lastStorageStr);
-    take.set(lastState);
+    lastHookStates = JSON.parse(lastStorageStr) as any[];
+    take.setHookStates(lastHookStates);
   }
-  take.subscribe((state) => {
-    if (state !== lastState) {
-      let toPersist: any = state;
-      if (state instanceof Object) {
-        // 处理白名单
-        if (whitelist.length > 0) {
-          toPersist = whitelist.reduce((toPersist, key) => {
-            if (key in state) {
-              toPersist[key] = state[key as keyof typeof state];
-            }
-            return toPersist;
-          }, {} as any);
-        }
-        // 处理黑名单
-        if (blacklist.length > 0) {
-          toPersist = blacklist.reduce(
-            (toPersist, key) => {
-              delete toPersist[key];
-              return toPersist;
-            },
-            { ...toPersist }
-          );
-        }
+  take.subscribe(() => {
+    const curHookStates = take.getHookStates();
+    if (!lastHookStates || !isShallowEquals(curHookStates, lastHookStates)) {
+      const toPersistStr = JSON.stringify(curHookStates);
+      localStorage.setItem(key, toPersistStr);
+      lastStorageStr = toPersistStr;
+      lastHookStates = curHookStates;
+      if (debug) {
+        console.log("[persist middleware]", curHookStates);
       }
-      const toPersistStr = JSON.stringify(toPersist);
-      if (toPersistStr !== lastStorageStr) {
-        localStorage.setItem(key, toPersistStr);
-        lastStorageStr = toPersistStr;
-        if (debug) {
-          console.log("[persist middleware]", toPersist);
-        }
-      }
-      lastState = state;
     }
-    return state;
   });
   return take;
 };
