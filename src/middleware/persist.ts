@@ -14,8 +14,9 @@ export type PersistProps = {
 
 export const persist: Middleware<PersistProps> = (take, props) => {
   const { key, debug = false } = props;
+  const localStorageKey = `${key}::${take.name}`;
   let lastHookStates: any[] | null = null;
-  let lastStorageStr = localStorage.getItem(key);
+  let lastStorageStr = localStorage.getItem(localStorageKey);
   if (lastStorageStr) {
     const hookStates = (lastHookStates = JSON.parse(lastStorageStr) as any[]);
     take.whenReady.then(() => {
@@ -26,7 +27,7 @@ export const persist: Middleware<PersistProps> = (take, props) => {
     const curHookStates = take.getHookStates();
     if (!lastHookStates || !isShallowEquals(curHookStates, lastHookStates)) {
       const toPersistStr = JSON.stringify(curHookStates);
-      localStorage.setItem(key, toPersistStr);
+      localStorage.setItem(localStorageKey, toPersistStr);
       lastStorageStr = toPersistStr;
       lastHookStates = curHookStates;
       if (debug) {
