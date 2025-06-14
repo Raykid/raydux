@@ -20,23 +20,6 @@ npm install raydux
 # Or, use any package manager of your choice.
 ```
 
-## 准备工作
-
-`StartUp` 是一个可选的集成组件，它集成了 `Provider` 和预加载等功能。你既可以使用 `StartUp` 组件包裹在项目最外侧，也可以仅使用 `Provider`，然后自行开发其他功能。
-
-这里只演示使用 `StartUp` 集成组件的方式。
-
-```jsx
-import { StartUp } from "raydux";
-
-// 将 StartUp 或 Provider 包裹在项目最外侧以提供访问数据仓库的能力
-createRoot(document.getElementById("app")).render(
-  <StartUp>
-    <div>...</div>
-  </StartUp>
-);
-```
-
 ## 创建一个 Slice
 
 使用 `createSlice` 函数创建一个 Slice。第一个参数提供数据切片名称，第二个参数传入一个`连续函数`，其中第二层函数为 `loop 函数`。loop 函数会在 Slice 生命周期里被多次执行，以生成最新的数据切片状态。
@@ -82,6 +65,8 @@ function Counter() {
 ```
 
 至此你已经完成了一个最简单的案例。当你点击按钮时，count 值会自动+1。
+
+**注意：`Raydux` 虽然基于 `Redux` 开发，但你无需在项目最外侧包裹 Provider 即可实现数据更新，其原理为在 `take` 函数内置了 `React.useSyncExternalStore` 的调用逻辑。**
 
 # Hooks
 
@@ -337,7 +322,7 @@ export const takeFoo = createSlice("foo", async () => {
 
 ## 预加载 Preloading
 
-由于 slice 存在异步初始化的情况，如果界面在 slice 初始化完毕前显示，有可能会碰到空引用错误，所以需要在所有 slice 初始化完毕前阻止界面展示。方式是在 `StartUp` 或 `Provider` 中进行判断：
+由于 slice 存在异步初始化的情况，如果界面在 slice 初始化完毕前显示，有可能会碰到空引用错误，所以需要在所有 slice 初始化完毕前阻止界面展示。方式是在你的项目最外侧包裹一个 `StartUp` 组件，并在其中进行判断，如下：
 
 ```jsx
 import { StartUp } from "raydux";
