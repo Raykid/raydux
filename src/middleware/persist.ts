@@ -21,19 +21,22 @@ export const persist: Middleware<PersistProps> = (take, props) => {
     const hookStates = (lastHookStates = JSON.parse(lastStorageStr) as any[]);
     take.whenReady.then(() => {
       take.setHookStates(hookStates);
+      take.subscribe(() => {
+        const curHookStates = take.getHookStates();
+        if (
+          !lastHookStates ||
+          !isShallowEquals(curHookStates, lastHookStates)
+        ) {
+          const toPersistStr = JSON.stringify(curHookStates);
+          localStorage.setItem(localStorageKey, toPersistStr);
+          lastStorageStr = toPersistStr;
+          lastHookStates = curHookStates;
+          if (debug) {
+            console.log("[persist middleware]", curHookStates);
+          }
+        }
+      });
     });
   }
-  take.subscribe(() => {
-    const curHookStates = take.getHookStates();
-    if (!lastHookStates || !isShallowEquals(curHookStates, lastHookStates)) {
-      const toPersistStr = JSON.stringify(curHookStates);
-      localStorage.setItem(localStorageKey, toPersistStr);
-      lastStorageStr = toPersistStr;
-      lastHookStates = curHookStates;
-      if (debug) {
-        console.log("[persist middleware]", curHookStates);
-      }
-    }
-  });
   return take;
 };
