@@ -4,6 +4,8 @@ import { ImmediateOrDelayed } from "../types/immediate-or-delayed";
 import { isSimpleValue } from "../utils/object-util";
 import { store } from "./store";
 
+export type Loop<State> = () => State;
+
 type SliceContext<State> = {
   name: string;
   ready: boolean;
@@ -14,7 +16,8 @@ type SliceContext<State> = {
   memoMap: { [key: string]: (state: State) => any };
   callbackMap: { [key: string]: Function };
   dependents: (() => void)[];
-  loop?: () => State;
+  subscribers: ((state: State) => void)[];
+  loop?: Loop<State>;
 };
 
 const sliceMap: { [name: string]: SliceContext<any> } = {};
@@ -49,13 +52,30 @@ export type Take<State> = {
   <Selector = (state: State) => any>(
     selector: Selector
   ): Selector extends (state: State) => infer Data ? Data : never;
+
+  /**
+   * 获取 slice 名字
+   */
+  readonly name: string;
+
+  /**
+   * 设置状态
+   * @param state
+   */
+  set(state: State): void;
+
+  /**
+   * 监听状态变更
+   * @param subscriber
+   */
+  subscribe(subscriber: (state: State) => void): () => void;
 };
 
 const STATE_TYPE = Symbol("state-type");
 
 export function createSlice<State extends Readonly<object>>(
   name: string,
-  creator: () => ImmediateOrDelayed<() => State>
+  creator: () => ImmediateOrDelayed<Loop<State>>
 ): Take<State> {
   if (name in sliceMap) {
     throw new Error(`Slice ${name} already exists`);
@@ -71,6 +91,7 @@ export function createSlice<State extends Readonly<object>>(
     memoMap: {},
     callbackMap: {},
     dependents: [],
+    subscribers: [],
     loop: undefined,
   };
   sliceMap[name] = context;
@@ -80,7 +101,7 @@ export function createSlice<State extends Readonly<object>>(
     // 需要等前置全部 Slice ready 后再开始初始化自身
     whenAllSlicesReady().then(() => {
       return new Promise((resolve) => {
-        const initializeHandler = (loop: () => State) => {
+        const initializeHandler = (loop: Loop<State>) => {
           context.loop = loop;
           context.ready = true;
           runLoop(context);
@@ -188,6 +209,42 @@ export function createSlice<State extends Readonly<object>>(
       return selector ? selector(state) : state;
     }
   }) as Take<State>;
+  Object.defineProperties(take, {
+    name: {
+      configurable: true,
+      enumerable: true,
+      writable: false,
+      value: name,
+    },
+    set: {
+      configurable: true,
+      enumerable: false,
+      writable: false,
+      value: (state: State) => {
+        const [stateMap] = separateState(state);
+        store.dispatch({
+          type: `${context.initialized ? "setState" : "initializeSlice"}::${context.name}`,
+          payload: stateMap,
+        });
+      },
+    },
+    subscribe: {
+      configurable: true,
+      enumerable: false,
+      writable: false,
+      value: (subscriber: (state: State) => void) => {
+        if (!context.subscribers.includes(subscriber)) {
+          context.subscribers.push(subscriber);
+        }
+        return () => {
+          const index = context.subscribers.indexOf(subscriber);
+          if (index >= 0) {
+            context.subscribers.splice(index, 1);
+          }
+        };
+      },
+    },
+  });
   // 触发 Listeners
   sliceCreatedListeners.forEach((listener) => {
     try {
@@ -203,6 +260,35 @@ export function createSlice<State extends Readonly<object>>(
   return take;
 }
 
+function separateState(state: any) {
+  // state 里面包含了 memos 和 callbacks，需要将其摘除，只保留 state
+  const stateMap: any = {};
+  const memoMap: {
+    [key: string]: (state: any) => any;
+  } = {};
+  const callbackMap: {
+    [key: string]: Function;
+  } = {};
+  for (const key in state) {
+    const value = state[key];
+    switch (value?.[STATE_TYPE]) {
+      case "memo": {
+        memoMap[key] = value;
+        break;
+      }
+      case "callback": {
+        callbackMap[key] = value;
+        break;
+      }
+      default: {
+        stateMap[key] = value;
+        break;
+      }
+    }
+  }
+  return [stateMap, memoMap, callbackMap];
+}
+
 function runLoop(context: SliceContext<any>) {
   if (!context.ready) {
     throw new Error(`Slice ${context.name} not ready`);
@@ -216,26 +302,9 @@ function runLoop(context: SliceContext<any>) {
   try {
     const state = context.loop!();
     // state 里面包含了 memos 和 callbacks，需要将其摘除，只保留 state
-    const stateMap: any = {};
-    context.memoMap = {};
-    context.callbackMap = {};
-    for (const key in state) {
-      const value = state[key];
-      switch (value?.[STATE_TYPE]) {
-        case "memo": {
-          context.memoMap[key] = value;
-          break;
-        }
-        case "callback": {
-          context.callbackMap[key] = value;
-          break;
-        }
-        default: {
-          stateMap[key] = value;
-          break;
-        }
-      }
-    }
+    const [stateMap, memoMap, callbackMap] = separateState(state);
+    context.memoMap = memoMap;
+    context.callbackMap = callbackMap;
     let type = `${context.initialized ? "setState" : "initializeSlice"}::${context.name}`;
     if (context.froms.length > 0) {
       for (const from of context.froms) {
@@ -253,6 +322,14 @@ function runLoop(context: SliceContext<any>) {
     // 如果有依赖关系，执行
     for (const dependent of context.dependents) {
       dependent();
+    }
+    // 通知监听器
+    for (const subscriber of context.subscribers) {
+      try {
+        subscriber(state);
+      } catch (err) {
+        console.error(err);
+      }
     }
   } catch (err) {
     console.error(err);
