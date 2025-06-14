@@ -17,26 +17,23 @@ export const persist: Middleware<PersistProps> = (take, props) => {
   const localStorageKey = `${key}::${take.name}`;
   let lastHookStates: any[] | null = null;
   let lastStorageStr = localStorage.getItem(localStorageKey);
-  if (lastStorageStr) {
-    const hookStates = (lastHookStates = JSON.parse(lastStorageStr) as any[]);
-    take.whenReady.then(() => {
+  take.whenReady.then(() => {
+    if (lastStorageStr) {
+      const hookStates = (lastHookStates = JSON.parse(lastStorageStr) as any[]);
       take.setHookStates(hookStates);
-      take.subscribe(() => {
-        const curHookStates = take.getHookStates();
-        if (
-          !lastHookStates ||
-          !isShallowEquals(curHookStates, lastHookStates)
-        ) {
-          const toPersistStr = JSON.stringify(curHookStates);
-          localStorage.setItem(localStorageKey, toPersistStr);
-          lastStorageStr = toPersistStr;
-          lastHookStates = curHookStates;
-          if (debug) {
-            console.log("[persist middleware]", curHookStates);
-          }
+    }
+    take.subscribe(() => {
+      const curHookStates = take.getHookStates();
+      if (!lastHookStates || !isShallowEquals(curHookStates, lastHookStates)) {
+        const toPersistStr = JSON.stringify(curHookStates);
+        localStorage.setItem(localStorageKey, toPersistStr);
+        lastStorageStr = toPersistStr;
+        lastHookStates = curHookStates;
+        if (debug) {
+          console.log("[persist middleware]", curHookStates);
         }
-      });
+      }
     });
-  }
+  });
   return take;
 };
