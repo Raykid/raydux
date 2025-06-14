@@ -17,8 +17,10 @@ export const persist: Middleware<PersistProps> = (take, props) => {
   let lastHookStates: any[] | null = null;
   let lastStorageStr = localStorage.getItem(key);
   if (lastStorageStr) {
-    lastHookStates = JSON.parse(lastStorageStr) as any[];
-    take.setHookStates(lastHookStates);
+    const hookStates = (lastHookStates = JSON.parse(lastStorageStr) as any[]);
+    take.whenReady.then(() => {
+      take.setHookStates(hookStates);
+    });
   }
   take.subscribe(() => {
     const curHookStates = take.getHookStates();

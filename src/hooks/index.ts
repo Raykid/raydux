@@ -59,6 +59,16 @@ export type Take<State> = {
   readonly name: string;
 
   /**
+   * 是否准备完毕
+   */
+  readonly ready: boolean;
+
+  /**
+   * 准备完毕的 Promise
+   */
+  readonly whenReady: Promise<void>;
+
+  /**
    * 获取所有 takeState 的当前值
    */
   getHookStates(): any[];
@@ -101,27 +111,25 @@ export function createSlice<State extends Readonly<object>>(
   };
   sliceMap[name] = context;
 
-  // 初始化
-  sliceInitPromiseList.push(
-    // 需要等前置全部 Slice ready 后再开始初始化自身
-    whenAllSlicesReady().then(() => {
-      return new Promise((resolve) => {
-        const initializeHandler = (loop: Loop<State>) => {
-          context.loop = loop;
-          context.ready = true;
-          runLoop(context);
-          context.initialized = true;
-          resolve();
-        };
-        const loop = creator();
-        if (loop instanceof Promise) {
-          loop.then(initializeHandler);
-        } else {
-          initializeHandler(loop);
-        }
-      });
-    })
-  );
+  // 需要等前置全部 Slice ready 后再开始初始化自身
+  const readyPromise = whenAllSlicesReady().then(() => {
+    return new Promise<void>((resolve) => {
+      const initializeHandler = (loop: Loop<State>) => {
+        context.loop = loop;
+        context.ready = true;
+        runLoop(context);
+        context.initialized = true;
+        resolve();
+      };
+      const loop = creator();
+      if (loop instanceof Promise) {
+        loop.then(initializeHandler);
+      } else {
+        initializeHandler(loop);
+      }
+    });
+  });
+  sliceInitPromiseList.push(readyPromise);
 
   // 因为 store 中不会记录函数，这里要记录 store 状态和 wholeState 的映射关系
   // 只需记录一个即可，因为状态变化后将不会再寻找之前的状态了
@@ -220,6 +228,19 @@ export function createSlice<State extends Readonly<object>>(
       enumerable: true,
       writable: false,
       value: name,
+    },
+    ready: {
+      configurable: true,
+      enumerable: true,
+      get: () => {
+        return context.initialized;
+      },
+    },
+    whenReady: {
+      configurable: true,
+      enumerable: true,
+      writable: false,
+      value: readyPromise,
     },
     getHookStates: {
       configurable: true,
