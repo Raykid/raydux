@@ -1,5 +1,5 @@
-import { isShallowEquals } from "src/utils/object-util";
 import { Middleware } from ".";
+import { isShallowEquals } from "../utils/object-util";
 
 export type PersistProps = {
   /**
