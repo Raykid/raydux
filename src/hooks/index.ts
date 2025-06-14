@@ -44,7 +44,12 @@ export function listenSliceCreated(
   };
 }
 
-export type Take<State> = () => State;
+export type Take<State> = {
+  (): State;
+  <Selector = (state: State) => any>(
+    selector: Selector
+  ): Selector extends (state: State) => infer Data ? Data : never;
+};
 
 const STATE_TYPE = Symbol("state-type");
 
@@ -102,7 +107,7 @@ export function createSlice<State extends Readonly<object>>(
   const depPaths: {
     [name: string]: { [key: string]: any };
   } = {};
-  const take: Take<State> = () => {
+  const take = ((selector?: (state: State) => any) => {
     try {
       return useSyncExternalStore(
         (callback) => {
@@ -168,21 +173,21 @@ export function createSlice<State extends Readonly<object>>(
               },
             });
           }
-          return lastWholeStateProxy;
+          return selector ? selector(lastWholeStateProxy) : lastWholeStateProxy;
         }
       );
     } catch {
       // 报错，说明可能不在正常的 hooks 中，直接获取数据
-      return (
+      const state =
         lastWholeState ??
         (lastWholeState = {
           ...(lastState = store.getState()[name]),
           ...context.memoMap,
           ...context.callbackMap,
-        })
-      );
+        });
+      return selector ? selector(state) : state;
     }
-  };
+  }) as Take<State>;
   // 触发 Listeners
   sliceCreatedListeners.forEach((listener) => {
     try {
