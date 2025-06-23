@@ -13,7 +13,6 @@ type SliceContext<State> = {
   dirty: boolean;
   froms: { name: string; hookIndex: number }[];
   hooks: { type: string; extra: any }[];
-  memoMap: { [key: string]: (state: State) => any };
   callbackMap: { [key: string]: Function };
   dependents: (() => void)[];
   subscribers: ((state: State) => void)[];
@@ -86,8 +85,6 @@ export type Take<State> = {
   subscribe(subscriber: (state: State) => void): () => void;
 };
 
-const STATE_TYPE = Symbol("state-type");
-
 export function createSlice<State extends Readonly<object>>(
   name: string,
   creator: () => ImmediateOrDelayed<Loop<State>>
@@ -103,7 +100,6 @@ export function createSlice<State extends Readonly<object>>(
     dirty: false,
     froms: [],
     hooks: [],
-    memoMap: {},
     callbackMap: {},
     dependents: [],
     subscribers: [],
@@ -150,7 +146,6 @@ export function createSlice<State extends Readonly<object>>(
             if (curStoreState[name] !== lastStoreSlice) {
               lastStoreSliceState = {
                 ...(lastStoreSlice = curStoreState[name]),
-                ...context.memoMap,
                 ...context.callbackMap,
               };
             }
@@ -191,7 +186,6 @@ export function createSlice<State extends Readonly<object>>(
             // 计算新的 wholeState
             lastWholeState = {
               ...(lastState = state),
-              ...context.memoMap,
               ...context.callbackMap,
             };
             lastWholeStateProxy = new Proxy(lastWholeState, {
@@ -216,7 +210,6 @@ export function createSlice<State extends Readonly<object>>(
         lastWholeState ??
         (lastWholeState = {
           ...(lastState = store.getState()[name]),
-          ...context.memoMap,
           ...context.callbackMap,
         });
       return selector ? selector(state) : state;
@@ -309,30 +302,18 @@ export function createSlice<State extends Readonly<object>>(
 function separateState(state: any) {
   // state 里面包含了 memos 和 callbacks，需要将其摘除，只保留 state
   const stateMap: any = {};
-  const memoMap: {
-    [key: string]: (state: any) => any;
-  } = {};
   const callbackMap: {
     [key: string]: Function;
   } = {};
   for (const key in state) {
     const value = state[key];
-    switch (value?.[STATE_TYPE]) {
-      case "memo": {
-        memoMap[key] = value;
-        break;
-      }
-      case "callback": {
-        callbackMap[key] = value;
-        break;
-      }
-      default: {
-        stateMap[key] = value;
-        break;
-      }
+    if (typeof value === "function") {
+      callbackMap[key] = value;
+    } else {
+      stateMap[key] = value;
     }
   }
-  return [stateMap, memoMap, callbackMap];
+  return [stateMap, callbackMap];
 }
 
 function runLoop(context: SliceContext<any>) {
@@ -348,8 +329,7 @@ function runLoop(context: SliceContext<any>) {
   try {
     const state = context.loop!();
     // state 里面包含了 memos 和 callbacks，需要将其摘除，只保留 state
-    const [stateMap, memoMap, callbackMap] = separateState(state);
-    context.memoMap = memoMap;
+    const [stateMap, callbackMap] = separateState(state);
     context.callbackMap = callbackMap;
     let type = `${context.initialized ? "setState" : "initializeSlice"}::${context.name}`;
     if (context.froms.length > 0) {
@@ -532,18 +512,6 @@ export function takeMemo<Memo>(memo: () => Memo, deps: any[]): Memo {
   const context = curContext;
   const index = curHookIndex++;
   let extra = context.hooks[index]?.extra;
-  const addTag = (memo: any) => {
-    if (memo) {
-      if (!isSimpleValue(memo)) {
-        Object.defineProperty(memo, STATE_TYPE, {
-          configurable: true,
-          enumerable: false,
-          writable: false,
-          value: "memo",
-        });
-      }
-    }
-  };
   if (!context.initialized) {
     context.hooks[index] = {
       type: "memo",
@@ -552,14 +520,12 @@ export function takeMemo<Memo>(memo: () => Memo, deps: any[]): Memo {
         memo: memo(),
       }),
     };
-    addTag(extra.memo);
   } else {
     // 判断 deps 是否相同
     if (!isDepsEqual(deps, extra.deps)) {
       // 有变化，重新计算
       extra.deps = deps;
       extra.memo = memo();
-      addTag(extra.memo);
     }
   }
   return extra.memo;
@@ -581,14 +547,6 @@ export function takeCallback<Callback extends Function>(
   const context = curContext;
   const index = curHookIndex++;
   let extra = context.hooks[index]?.extra;
-  const addTag = () => {
-    Object.defineProperty(callback, STATE_TYPE, {
-      configurable: true,
-      enumerable: false,
-      writable: false,
-      value: "callback",
-    });
-  };
   if (!context.initialized) {
     context.hooks[index] = {
       type: "callback",
@@ -597,14 +555,12 @@ export function takeCallback<Callback extends Function>(
         callback,
       }),
     };
-    addTag();
   } else {
     // 判断 deps 是否相同
     if (!isDepsEqual(deps, extra.deps)) {
       // 有变化，重新计算
       extra.deps = deps;
       extra.callback = callback;
-      addTag();
     }
   }
   return extra.callback;
