@@ -422,7 +422,7 @@ export type SimpleValueDispatch<State> = {
 
 export type ComplexTypeDispatch<State> = {
   (nextState: State): State;
-  (reducer: (lastState: Readonly<State>) => State, pure: true): State;
+  (reducer: (lastState: Readonly<State>) => Readonly<State>, pure: true): State;
   (mutator: (state: State) => void | undefined, pure?: false): State;
 };
 
