@@ -386,7 +386,7 @@ function setDirty(
   context.froms.push(from);
   if (!context.dirty) {
     context.dirty = true;
-    Promise.resolve()
+    localPromise
       .then(() => {
         flush(context);
       })
@@ -454,8 +454,8 @@ export function takeState<State>(
   }
   const context = curContext;
   const index = curHookIndex++;
-  let lastState: State | undefined;
   let extra = context.hooks[index]?.extra;
+  let lastState: State | undefined;
   if (!context.initialized) {
     lastState = typeof state === "function" ? (state as () => State)() : state;
     context.hooks[index] = {
@@ -463,6 +463,8 @@ export function takeState<State>(
       extra: (extra = {
         state: lastState,
         setState: <Dispatch<State>>((nextStateOrReducer, pure) => {
+          // extra 要重新获取，因为这是在闭包里，可能缓存的是老版本
+          const extra = context.hooks[index].extra;
           // lastState 要重新获取，因为可能被外部改了
           const lastState = extra.state;
           let newState: State;
@@ -589,7 +591,6 @@ export function takeEffect(effect: () => (() => void) | void, deps: any[]) {
         // 有变化，重新执行
         if (extra.cleanup) {
           extra.cleanup();
-          extra.dispatch = undefined;
         }
         extra.deps = deps;
         extra.cleanup = effect();
