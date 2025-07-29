@@ -204,7 +204,7 @@ export function createSlice<State extends Readonly<object>>(
               });
             }
           }
-          getState();
+          return getState();
         }
       );
     } catch {
