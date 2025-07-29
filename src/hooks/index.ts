@@ -412,20 +412,11 @@ function isDepsEqual(deps: any[], lastDeps: any[]): boolean {
   });
 }
 
-export type SimpleValueDispatch<State> = {
-  (nextState: State): State;
-  (reducer: (lastState: State) => State): State;
-};
-
-export type ComplexTypeDispatch<State> = {
+export type Dispatch<State> = {
   (nextState: State): State;
   (reducer: (lastState: Readonly<State>) => Readonly<State>, pure: true): State;
-  (mutator: (state: State) => void | undefined, pure?: false): State;
+  (mutator: (state: State) => State | void, pure?: false): State;
 };
-
-export type Dispatch<State, OriState = State> = OriState extends object
-  ? ComplexTypeDispatch<State>
-  : SimpleValueDispatch<State>;
 
 /**
  * 构建一个可变状态
@@ -441,7 +432,7 @@ export function takeState<State>(
  */
 export function takeState<State = undefined>(): [
   State | undefined,
-  Dispatch<State | undefined, State>,
+  Dispatch<State | undefined>,
 ];
 export function takeState<State>(
   state?: State | (() => State)
