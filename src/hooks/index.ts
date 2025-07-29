@@ -138,6 +138,29 @@ export function createSlice<State extends Readonly<object>>(
     [name: string]: { [key: string]: any };
   } = {};
   const take = ((selector?: (state: State) => any) => {
+    const getState = () => {
+      const state = store.getState()[name];
+      if (state !== lastState) {
+        // 计算新的 wholeState
+        lastWholeState = {
+          ...(lastState = state),
+          ...context.callbackMap,
+        };
+        lastWholeStateProxy = new Proxy(lastWholeState, {
+          get(wholeState, key: string) {
+            const targetState = wholeState[key];
+            if (targetState !== depPaths[name]?.[key]) {
+              depPaths[name] = {
+                ...depPaths[name],
+                [key]: targetState,
+              };
+            }
+            return targetState;
+          },
+        });
+      }
+      return selector ? selector(lastWholeStateProxy) : lastWholeStateProxy;
+    };
     try {
       return useSyncExternalStore(
         (callback) => {
@@ -171,7 +194,7 @@ export function createSlice<State extends Readonly<object>>(
           if (curContext) {
             // 在某个 Slice 里面间接调用了另一个 Slice，需要添加依赖
             const dependentContext = curContext;
-            const dependentHookIndex = curHookIndex++;
+            const dependentHookIndex = curHookIndex;
             if (!dependentContext.initialized) {
               context.dependents.push(() => {
                 setDirty(dependentContext, {
@@ -181,38 +204,12 @@ export function createSlice<State extends Readonly<object>>(
               });
             }
           }
-          const state = store.getState()[name];
-          if (state !== lastState) {
-            // 计算新的 wholeState
-            lastWholeState = {
-              ...(lastState = state),
-              ...context.callbackMap,
-            };
-            lastWholeStateProxy = new Proxy(lastWholeState, {
-              get(wholeState, key: string) {
-                const targetState = wholeState[key];
-                if (targetState !== depPaths[name]?.[key]) {
-                  depPaths[name] = {
-                    ...depPaths[name],
-                    [key]: targetState,
-                  };
-                }
-                return targetState;
-              },
-            });
-          }
-          return selector ? selector(lastWholeStateProxy) : lastWholeStateProxy;
+          getState();
         }
       );
     } catch {
       // 报错，说明可能不在正常的 hooks 中，直接获取数据
-      const state =
-        lastWholeState ??
-        (lastWholeState = {
-          ...(lastState = store.getState()[name]),
-          ...context.callbackMap,
-        });
-      return selector ? selector(state) : state;
+      return getState();
     }
   }) as Take<State>;
   Object.defineProperties(take, {
@@ -426,7 +423,7 @@ export type ComplexTypeDispatch<State> = {
   (mutator: (state: State) => void | undefined, pure?: false): State;
 };
 
-export type Dispatch<State> = State extends object
+export type Dispatch<State, OriState = State> = OriState extends object
   ? ComplexTypeDispatch<State>
   : SimpleValueDispatch<State>;
 
@@ -444,7 +441,7 @@ export function takeState<State>(
  */
 export function takeState<State = undefined>(): [
   State | undefined,
-  Dispatch<State | undefined>,
+  Dispatch<State | undefined, State>,
 ];
 export function takeState<State>(
   state?: State | (() => State)
