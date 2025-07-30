@@ -20,6 +20,8 @@ type SliceContext<State> = {
 };
 
 const sliceMap: { [name: string]: SliceContext<any> } = {};
+// 当前正在初始化的 Slice 的 Context
+let initContext: SliceContext<any> | null = null;
 // 当前正在运行的 Slice 的 Context
 let curContext: SliceContext<any> | null = null;
 let curHookIndex = 0;
@@ -111,12 +113,16 @@ export function createSlice<State extends Readonly<object>>(
   const readyPromise = whenAllSlicesReady().then(() => {
     return new Promise<void>((resolve) => {
       const initializeHandler = (loop: Loop<State>) => {
+        if (context === initContext) {
+          initContext = null;
+        }
         context.loop = loop;
         context.ready = true;
         runLoop(context);
         context.initialized = true;
         resolve();
       };
+      initContext = context;
       const loop = creator();
       if (loop instanceof Promise) {
         loop.then(initializeHandler);
@@ -161,55 +167,60 @@ export function createSlice<State extends Readonly<object>>(
       }
       return selector ? selector(lastWholeStateProxy) : lastWholeStateProxy;
     };
-    try {
-      return useSyncExternalStore(
-        (callback) => {
-          return store.subscribe(() => {
-            const curStoreState = store.getState();
-            if (curStoreState[name] !== lastStoreSlice) {
-              lastStoreSliceState = {
-                ...(lastStoreSlice = curStoreState[name]),
-                ...context.callbackMap,
-              };
-            }
-            // 遍历所有依赖路径，确定是否有变化
-            all: for (const name in depPaths) {
-              const sliceState = depPaths[name];
-              for (const key in sliceState) {
-                const lastState = sliceState[key];
-                const curState = lastStoreSliceState[key];
-                if (curState !== lastState) {
-                  // 与之前不同了，触发回调
-                  callback();
-                  // 跳出双重循环
-                  break all;
+    // 获取时要确保数据最新
+    flush(context);
+    if (initContext) {
+      // 当前正在初始化其他 Slice，不能使用响应式数据，也不需要添加依赖，直接返回普通数据
+      return getState();
+    } else if (curContext) {
+      // 在某个 Slice 里面间接调用了另一个 Slice，需要添加依赖
+      const dependentContext = curContext;
+      const dependentHookIndex = curHookIndex;
+      if (!dependentContext.initialized) {
+        context.dependents.push(() => {
+          setDirty(dependentContext, {
+            name: context.name,
+            hookIndex: dependentHookIndex,
+          });
+        });
+      }
+      return getState();
+    } else {
+      try {
+        return useSyncExternalStore(
+          (callback) => {
+            return store.subscribe(() => {
+              const curStoreState = store.getState();
+              if (curStoreState[name] !== lastStoreSlice) {
+                lastStoreSliceState = {
+                  ...(lastStoreSlice = curStoreState[name]),
+                  ...context.callbackMap,
+                };
+              }
+              // 遍历所有依赖路径，确定是否有变化
+              all: for (const name in depPaths) {
+                const sliceState = depPaths[name];
+                for (const key in sliceState) {
+                  const lastState = sliceState[key];
+                  const curState = lastStoreSliceState[key];
+                  if (curState !== lastState) {
+                    // 与之前不同了，触发回调
+                    callback();
+                    // 跳出双重循环
+                    break all;
+                  }
                 }
               }
-            }
-          });
-        },
-        () => {
-          // 获取时要确保数据最新
-          flush(context);
-          if (curContext) {
-            // 在某个 Slice 里面间接调用了另一个 Slice，需要添加依赖
-            const dependentContext = curContext;
-            const dependentHookIndex = curHookIndex;
-            if (!dependentContext.initialized) {
-              context.dependents.push(() => {
-                setDirty(dependentContext, {
-                  name: context.name,
-                  hookIndex: dependentHookIndex,
-                });
-              });
-            }
+            });
+          },
+          () => {
+            return getState();
           }
-          return getState();
-        }
-      );
-    } catch {
-      // 报错，说明可能不在正常的 hooks 中，直接获取数据
-      return getState();
+        );
+      } catch {
+        // 报错，说明可能不在正常的 hooks 中，直接获取数据
+        return getState();
+      }
     }
   }) as Take<State>;
   Object.defineProperties(take, {
@@ -317,10 +328,8 @@ function runLoop(context: SliceContext<any>) {
   if (!context.ready) {
     throw new Error(`Slice ${context.name} not ready`);
   }
-  if (curContext) {
-    throw new Error("Do not call hooks inside another hook");
-  }
   const lastContext = curContext;
+  const lastHookIndex = curHookIndex;
   curContext = context;
   curHookIndex = 0;
   try {
@@ -338,9 +347,12 @@ function runLoop(context: SliceContext<any>) {
         }
       }
     }
-    store.dispatch({
-      type,
-      payload: stateMap,
+    // 提交 store，会立即出发组件重绘，如果是在组件重绘中途触发会报错，因此要延迟触发
+    localPromise.then(() => {
+      store.dispatch({
+        type,
+        payload: stateMap,
+      });
     });
     // 如果有依赖关系，执行
     for (const dependent of context.dependents) {
@@ -358,6 +370,7 @@ function runLoop(context: SliceContext<any>) {
     console.error(err);
   } finally {
     curContext = lastContext;
+    curHookIndex = lastHookIndex;
   }
 }
 
