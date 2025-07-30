@@ -167,8 +167,6 @@ export function createSlice<State extends Readonly<object>>(
       }
       return selector ? selector(lastWholeStateProxy) : lastWholeStateProxy;
     };
-    // 获取时要确保数据最新
-    flush(context);
     if (initContext) {
       // 当前正在初始化其他 Slice，不能使用响应式数据，也不需要添加依赖，直接返回普通数据
       return getState();
@@ -347,12 +345,9 @@ function runLoop(context: SliceContext<any>) {
         }
       }
     }
-    // 提交 store，会立即出发组件重绘，如果是在组件重绘中途触发会报错，因此要延迟触发
-    localPromise.then(() => {
-      store.dispatch({
-        type,
-        payload: stateMap,
-      });
+    store.dispatch({
+      type,
+      payload: stateMap,
     });
     // 如果有依赖关系，执行
     for (const dependent of context.dependents) {
