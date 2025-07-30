@@ -111,23 +111,27 @@ export function createSlice<State extends Readonly<object>>(
 
   // 需要等前置全部 Slice ready 后再开始初始化自身
   const readyPromise = whenAllSlicesReady().then(() => {
-    return new Promise<void>((resolve) => {
-      const initializeHandler = (loop: Loop<State>) => {
-        if (context === initContext) {
-          initContext = null;
+    return new Promise<void>((resolve, reject) => {
+      try {
+        const initializeHandler = (loop: Loop<State>) => {
+          if (context === initContext) {
+            initContext = null;
+          }
+          context.loop = loop;
+          context.ready = true;
+          runLoop(context);
+          context.initialized = true;
+          resolve();
+        };
+        initContext = context;
+        const loop = creator();
+        if (loop instanceof Promise) {
+          loop.then(initializeHandler).catch(reject);
+        } else {
+          initializeHandler(loop);
         }
-        context.loop = loop;
-        context.ready = true;
-        runLoop(context);
-        context.initialized = true;
-        resolve();
-      };
-      initContext = context;
-      const loop = creator();
-      if (loop instanceof Promise) {
-        loop.then(initializeHandler);
-      } else {
-        initializeHandler(loop);
+      } catch (reason) {
+        reject(reason);
       }
     });
   });

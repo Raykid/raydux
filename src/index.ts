@@ -19,7 +19,7 @@ export * from "./hooks/store";
 
 export type StartrUpChildrenContext = {
   ready: boolean;
-  failReason?: any;
+  reason?: any;
 };
 
 export type StartrUpProps = {
@@ -45,7 +45,7 @@ export const StartUp: FC<StartrUpProps> = (props) => {
   const { children, dynamicallyInitialize, development } = props;
 
   const [ready, setReady] = useState(false);
-  const [failReason, setFailReason] = useState<any>();
+  const [reason, setReason] = useState<any>();
   useEffect(() => {
     let allReady: Promise<unknown>;
     const validateReady = () => {
@@ -53,7 +53,7 @@ export const StartUp: FC<StartrUpProps> = (props) => {
       if (dynamicallyInitialize) {
         setReady(false);
       }
-      setFailReason(undefined);
+      setReason(undefined);
       const myReady = (allReady = whenAllSlicesReady()
         .then(() => {
           // 如果 allReady 和 myReady 一致，说明在这之后没有其他新增的 slice，可以确认 ready
@@ -64,7 +64,7 @@ export const StartUp: FC<StartrUpProps> = (props) => {
         .catch((reason) => {
           if (allReady === myReady) {
             setReady(false);
-            setFailReason(reason);
+            setReason(reason);
           }
         }));
     };
@@ -83,15 +83,12 @@ export const StartUp: FC<StartrUpProps> = (props) => {
     if (childrenIsComponentType) {
       return createElement(children as ComponentType<StartrUpChildrenContext>, {
         ready,
-        failReason,
+        reason,
       });
     } else {
       return children as ReactNode;
     }
-  }, [
-    childrenIsComponentType && ready,
-    childrenIsComponentType && setFailReason,
-  ]);
+  }, [childrenIsComponentType && ready, childrenIsComponentType && reason]);
 
   const rendererWithStrictMode = useMemo(() => {
     return development ? createElement(StrictMode, {}, renderer) : renderer;
