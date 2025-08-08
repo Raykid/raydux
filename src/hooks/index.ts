@@ -220,7 +220,10 @@ export function createSlice<State extends Readonly<object>>(
           }
         );
       } catch {
-        // 报错，说明可能不在正常的 hooks 中，直接获取数据
+        // 报错，说明可能不在正常的 hooks 中，先确保状态最新，然后直接获取数据
+        if (context.dirty) {
+          flush(context);
+        }
         return getState();
       }
     }
